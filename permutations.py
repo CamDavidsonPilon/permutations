@@ -1,10 +1,15 @@
+from __future__ import annotations
+from collections.abc import MutableSequence
+from copy import copy
+from typing import Union
+
 class Permutation:
 
-    def __init__(self, *cycles):
+    def __init__(self, *cycles: Union[Permutation, Cycle]):
         self.cycles = cycles
 
-    def __call__(self, indexable):
-        indexable = indexable.copy()
+    def __call__(self, indexable: MutableSequence) -> MutableSequence:
+        indexable = copy(indexable)
 
         for cycle in reversed(self.cycles):
             indexable = cycle(indexable)
@@ -24,20 +29,21 @@ class Permutation:
     def __repr__(self):
         return str(self)
 
-    def __mul__(self, other):
+    def __mul__(self, other: Union[Permutation, Cycle]) -> Permutation:
         if isinstance(other, Cycle):
             return Permutation(*self.cycles, other)
         else:
             return Permutation(*self.cycles, *other.cycles)
 
-    def inverse(self):
+    def inverse(self) -> Permutation:
         # group inverse, so that P(P.inverse()(L)) == L == P.inverse()(P(L))
         return Permutation(*(c.inverse() for c in reversed(self.cycles)))
 
     def __eq__(self, other):
+        # needs to be redone to compare cycles, too
         return all(x == y for (x,y) in zip(self.to_minimal_form().cycles, other.to_minimal_form().cycles)) and (len(self.to_minimal_form().cycles) == len(other.to_minimal_form().cycles))
 
-    def max(self):
+    def max(self) -> int:
         # return the maximum index in the permutation
 
         if len(self.cycles) == 0:
@@ -45,11 +51,11 @@ class Permutation:
         else:
             return max(map(lambda c: c.max(), self.cycles))
 
-    def to_transpositions(self):
+    def to_transpositions(self) -> Permutation:
         # To simple 2-length cycles
         return Permutation(*(c.to_transpositions() for c in self.cycles))
 
-    def to_minimal_form(self):
+    def to_minimal_form(self) -> Permutation:
         # find the smallest, disjoint, representation
         # Ex: P = (3, 4)(6, 10)(10, 11)(1, 5)(5, 12)
         # minimal form is (1, 5, 12)(3, 4)(6, 10, 11)
@@ -80,7 +86,7 @@ E = Permutation() # identity
 
 class Cycle:
 
-    def __init__(self, *args):
+    def __init__(self, *args: int):
         assert len(args) >= 2
         assert min(args) >= 1
 
@@ -98,8 +104,8 @@ class Cycle:
         return l[1:] + l[:1]
 
 
-    def __call__(self, indexable):
-        indexable = indexable.copy()
+    def __call__(self, indexable: MutableSequence) -> MutableSequence:
+        indexable = copy(indexable)
 
         if len(self.cycle) == 2:
             a, b = self.cycle
@@ -117,26 +123,27 @@ class Cycle:
     def __repr__(self):
         return str(self)
 
-    def __mul__(self, other):
+    def __mul__(self, other: Union[Permutation, Cycle]) -> Permutation:
         return Permutation(self, other)
 
     def __eq__(self, other):
+        # should be reimplemented to also check a Permutation
         return self.cycle == other.cycle
 
-    def inverse(self):
+    def inverse(self) -> Cycle:
         return Cycle(*reversed(self.cycle))
 
-    def to_transpositions(self):
+    def to_transpositions(self) -> Union[Cycle, Permutation]:
         if len(self.cycle) == 2:
             return self
         else:
             a,b, *rest = self.cycle
             return Permutation(Cycle(a, b), Cycle(b, *rest).to_transpositions())
 
-    def max(self):
+    def max(self) -> int:
         return max(self.cycle)
 
-    def min(self):
+    def min(self) -> int:
         return min(self.cycle)
 
 
@@ -158,10 +165,10 @@ if __name__ == "__main__":
     print(P)
     print(P.to_transpositions())
 
-    solP = P.inverse()
-    assert solP(P(L)) == L
+    Pinv = P.inverse()
+    assert Pinv(P(L)) == L
 
-    assert (solP * P) == E == (P * solP)
+    assert (Pinv * P) == E == (P * Pinv)
 
     assert P * E == P
     assert E * P == P
