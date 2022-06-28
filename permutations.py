@@ -35,11 +35,15 @@ class Permutation:
         return Permutation(*(c.inverse() for c in reversed(self.cycles)))
 
     def __eq__(self, other):
-        return all(x == y for (x,y) in zip(self.cycles, other.cycles)) and (len(self.cycles) == len(other.cycles))
+        return all(x == y for (x,y) in zip(self.to_minimal_form().cycles, other.to_minimal_form().cycles)) and (len(self.to_minimal_form().cycles) == len(other.to_minimal_form().cycles))
 
     def max(self):
         # return the maximum index in the permutation
-        return max(map(lambda c: c.max(), self.cycles))
+
+        if len(self.cycles) == 0:
+            return 0
+        else:
+            return max(map(lambda c: c.max(), self.cycles))
 
     def to_transpositions(self):
         # To simple 2-length cycles
@@ -69,6 +73,9 @@ class Permutation:
 
 
         return Permutation(*cycles)
+
+
+E = Permutation() # identity
 
 
 class Cycle:
@@ -148,10 +155,17 @@ if __name__ == "__main__":
 
     L = list(range(1, 16))
     P = Permutation(Cycle(3,4), Cycle(6, 10, 11), Cycle(1, 5, 12))
-
+    print(P)
+    print(P.to_transpositions())
 
     solP = P.inverse()
-    print(solP(P(L)))
+    assert solP(P(L)) == L
 
-    print(P.to_transpositions())
+    assert (solP * P) == E == (P * solP)
+
+    assert P * E == P
+    assert E * P == P
+
+
+
 
