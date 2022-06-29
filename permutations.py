@@ -35,13 +35,22 @@ class Permutation:
         else:
             return Permutation(*self.cycles, *other.cycles)
 
+    def __pow__(self, exponent: int):
+        P = E
+        for _ in range(exponent):
+            P = P * self
+        return P.to_minimal_form()
+
+
     def inverse(self) -> Permutation:
         # group inverse, so that P(P.inverse()(L)) == L == P.inverse()(P(L))
         return Permutation(*(c.inverse() for c in reversed(self.cycles)))
 
     def __eq__(self, other):
-        # needs to be redone to compare cycles, too
-        return all(x == y for (x,y) in zip(self.to_minimal_form().cycles, other.to_minimal_form().cycles)) and (len(self.to_minimal_form().cycles) == len(other.to_minimal_form().cycles))
+        if isinstance(other, Cycle):
+            return len(self.cycles) == 1 and (self.cycles[0] == Cycle)
+        else:
+            return all(x == y for (x,y) in zip(self.to_minimal_form().cycles, other.to_minimal_form().cycles)) and (len(self.to_minimal_form().cycles) == len(other.to_minimal_form().cycles))
 
     def max(self) -> int:
         # return the maximum index in the permutation
@@ -52,7 +61,7 @@ class Permutation:
             return max(map(lambda c: c.max(), self.cycles))
 
     def to_transpositions(self) -> Permutation:
-        # To simple 2-length cycles
+        # To simple 2-length cycles, not necessarily disjoint
         return Permutation(*(c.to_transpositions() for c in self.cycles))
 
     def to_minimal_form(self) -> Permutation:
@@ -60,23 +69,27 @@ class Permutation:
         # Ex: P = (3, 4)(6, 10)(10, 11)(1, 5)(5, 12)
         # minimal form is (1, 5, 12)(3, 4)(6, 10, 11)
 
-        # this basically sends a number through, and determines where it ends up. Kinda flakey.
+        # this basically sends a number through, and determines where it ends up. Kinda sketch.
+
+
         L = list(range(1, self.max() + 1))
+        L_mask = [True] * len(L)
         L_prime = self(L)
 
         cycles = []
         for i in L:
-            L.remove(i)
+            if not L_mask[i-1]:
+                continue
+            L_mask[i-1] = False
             cycle = [i]
             j = L_prime.index(i) + 1
             while i != j:
                 cycle.append(j)
-                L.remove(j)
+                L_mask[j-1] = False
                 j = L_prime.index(j) + 1
 
             if len(cycle) >= 2:
                 cycles.append(Cycle(*cycle))
-
 
         return Permutation(*cycles)
 
@@ -90,14 +103,13 @@ class Cycle:
         assert len(args) >= 2
         assert min(args) >= 1
 
-        # rotate args until the minimum value is first
+        # rotate args until the maximum value is first
         m = min(args)
 
         while args[0] != m:
             args = self._rotate(args)
 
         self.cycle = args
-
 
     @staticmethod
     def _rotate(l):
@@ -107,7 +119,7 @@ class Cycle:
     def __call__(self, indexable: MutableSequence) -> MutableSequence:
         indexable = copy(indexable)
 
-        if len(self.cycle) == 2:
+        if self.order == 2:
             a, b = self.cycle
             alpha, beta = indexable[a-1], indexable[b-1] # we use 1-indexing 
             indexable[b-1] = alpha
@@ -118,6 +130,7 @@ class Cycle:
             return p(indexable)
 
     def __str__(self):
+
         return str(self.cycle)
 
     def __repr__(self):
@@ -127,14 +140,19 @@ class Cycle:
         return Permutation(self, other)
 
     def __eq__(self, other):
-        # should be reimplemented to also check a Permutation
-        return self.cycle == other.cycle
+        if isinstance(other, Cycle):
+            return self.cycle == other.cycle
+        else:
+            return other == self
+
+    def __pow__(self, exponent: int):
+        return Permutation(self) ** exponent
 
     def inverse(self) -> Cycle:
         return Cycle(*reversed(self.cycle))
 
     def to_transpositions(self) -> Union[Cycle, Permutation]:
-        if len(self.cycle) == 2:
+        if self.order == 2:
             return self
         else:
             a,b, *rest = self.cycle
@@ -145,6 +163,14 @@ class Cycle:
 
     def min(self) -> int:
         return min(self.cycle)
+
+    @property
+    def order(self) -> int:
+        return len(self.cycle)
+
+    def to_minimal_form(self):
+        return Permutation(self)
+
 
 
 
@@ -158,6 +184,7 @@ if __name__ == "__main__":
 
     c = Cycle(1,2,3,4)
     assert c(["a", "b", "c", "d"]) == ['d', 'a', 'b', 'c']
+    assert Cycle(1,2,3,4) == Cycle(2,3,4,1)
 
 
     L = list(range(1, 16))
@@ -172,6 +199,7 @@ if __name__ == "__main__":
 
     assert P * E == P
     assert E * P == P
+
 
 
 
