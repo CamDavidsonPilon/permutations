@@ -1,20 +1,34 @@
 from __future__ import annotations
 from collections.abc import MutableSequence
 from copy import copy
-from typing import Union
+from typing import Union, Literal
+from math import lcm
+
+
+class PermutationCollection(set):
+
+    def __mul__(self, other):
+        if isinstance(other, (Permutation, Cycle)):
+            # List * permutation
+            return PermutationCollection(( (f * other).to_minimal_form() for f in self))
+        else:
+            raise ValueError
+
+    def __add__(self, other):
+        return PermutationCollection(self.union(other))
 
 
 class Permutation:
     def __init__(self, *cycles: Union[Permutation, Cycle]):
         self.cycles = cycles
 
-    def __call__(self, indexable: MutableSequence) -> MutableSequence:
-        indexable = copy(indexable)
+    def __call__(self, indexable_or_int: MutableSequence | int) -> MutableSequence | int:
+        indexable_or_int = copy(indexable_or_int)
 
         for cycle in reversed(self.cycles):
-            indexable = cycle(indexable)
+            indexable_or_int = cycle(indexable_or_int)
 
-        return indexable
+        return indexable_or_int
 
     def __str__(self):
         s = ""
@@ -29,9 +43,11 @@ class Permutation:
     def __repr__(self):
         return str(self)
 
-    def __mul__(self, other: Union[Permutation, Cycle]) -> Permutation:
+    def __mul__(self, other: Union[Permutation, Cycle, PermutationCollection]):
         if isinstance(other, Cycle):
             return Permutation(*self.cycles, other)
+        elif isinstance(other, PermutationCollection):
+            return PermutationCollection(( (self * f).to_minimal_form() for f in other))
         else:
             return Permutation(*self.cycles, *other.cycles)
 
@@ -101,6 +117,22 @@ class Permutation:
 
         return Permutation(*cycles)
 
+    @property
+    def parity(self) -> Literal[0, 1]:
+        running_sum = 0
+        for c in self.cycles:
+            running_sum += c.parity
+        return running_sum % 2
+
+
+    @property
+    def order(self) -> int:
+        return lcm(*(c.order for c in self.cycles))
+
+
+    def __hash__(self) -> int:
+        return hash(self.to_minimal_form().cycles)
+
 
 E = Permutation()  # identity
 
@@ -122,18 +154,28 @@ class Cycle:
     def _rotate(l):
         return l[1:] + l[:1]
 
-    def __call__(self, indexable: MutableSequence) -> MutableSequence:
-        indexable = copy(indexable)
+    def __call__(self, indexable_or_int: MutableSequence | int) -> MutableSequence | int:
 
-        if self.order == 2:
-            a, b = self.cycle
-            alpha, beta = indexable[a - 1], indexable[b - 1]  # we use 1-indexing
-            indexable[b - 1] = alpha
-            indexable[a - 1] = beta
-            return indexable
+        if isinstance(indexable_or_int, int):
+            int_ = indexable_or_int
+            if int_ in self.cycle:
+                ix = self.cycle.index(int_)
+                return self.cycle[(ix+1) % self.order]
+            else:
+                return int_
+
         else:
-            p = self.to_transpositions()
-            return p(indexable)
+            indexable = copy(indexable_or_int)
+
+            if self.order == 2:
+                a, b = self.cycle
+                alpha, beta = indexable[a - 1], indexable[b - 1]  # we use 1-indexing
+                indexable[b - 1] = alpha
+                indexable[a - 1] = beta
+                return indexable
+            else:
+                p = self.to_transpositions()
+                return p(indexable)
 
     def __str__(self):
         return str(self.cycle)
@@ -141,8 +183,11 @@ class Cycle:
     def __repr__(self):
         return str(self)
 
-    def __mul__(self, other: Union[Permutation, Cycle]) -> Permutation:
-        return Permutation(self, other)
+    def __mul__(self, other: Union[Permutation, Cycle, PermutationCollection]) -> Permutation:
+        if isinstance(other, PermutationCollection):
+            return PermutationCollection(( (self * f).to_minimal_form() for f in other))
+        else:
+            return Permutation(self, other)
 
     def __eq__(self, other):
         if isinstance(other, Cycle):
@@ -173,8 +218,16 @@ class Cycle:
     def order(self) -> int:
         return len(self.cycle)
 
-    def to_minimal_form(self):
+    @property
+    def parity(self) -> Literal[0, 1]:
+        return (self.order + 1) % 2
+
+    def to_minimal_form(self) -> Permutation:
         return Permutation(self)
+
+    def __hash__(self):
+        return self.cycle.__hash__()
+
 
 
 if __name__ == "__main__":
