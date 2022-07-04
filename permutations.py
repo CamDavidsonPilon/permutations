@@ -3,6 +3,8 @@ from collections.abc import MutableSequence
 from copy import copy
 from typing import Union, Literal
 from math import lcm
+from functools import reduce
+from operator import xor
 
 
 class PermutationCollection(set):
@@ -16,6 +18,7 @@ class PermutationCollection(set):
 
     def __add__(self, other):
         return PermutationCollection(self.union(other))
+
 
 
 class Permutation:
@@ -49,7 +52,7 @@ class Permutation:
         elif isinstance(other, PermutationCollection):
             return PermutationCollection(( (self * f).to_minimal_form() for f in other))
         else:
-            return Permutation(*self.cycles, *other.cycles)
+            return Permutation(*self.cycles, *other.cycles).to_minimal_form()
 
     def __pow__(self, exponent: int):
         P = E
@@ -59,21 +62,24 @@ class Permutation:
 
     def inverse(self) -> Permutation:
         # group inverse, so that P(P.inverse()(L)) == L == P.inverse()(P(L))
-        return Permutation(*(c.inverse() for c in reversed(self.cycles)))
+        return Permutation(*(c.inverse() for c in reversed(self.cycles))).to_minimal_form()
 
     def __eq__(self, other):
         if isinstance(other, Cycle):
             return len(self.cycles) == 1 and (self.cycles[0] == Cycle)
         else:
-            return all(
-                x == y
-                for (x, y) in zip(
-                    self.to_minimal_form().cycles, other.to_minimal_form().cycles
+            if self.is_minimal_form and other.is_minimal_form:
+                return hash(self) == hash(other)
+            else:
+                return all(
+                    x == y
+                    for (x, y) in zip(
+                        self.to_minimal_form().cycles, other.to_minimal_form().cycles
+                    )
+                ) and (
+                    len(self.to_minimal_form().cycles)
+                    == len(other.to_minimal_form().cycles)
                 )
-            ) and (
-                len(self.to_minimal_form().cycles)
-                == len(other.to_minimal_form().cycles)
-            )
 
     def max(self) -> int:
         # return the maximum index in the permutation
@@ -89,12 +95,38 @@ class Permutation:
             *(t for cycle in self.cycles for t in cycle.to_transpositions().cycles)
         )
 
+    @property
+    def is_minimal_form(self) -> bool:
+        # is in increasing cycle order, and no overlap?
+        if hasattr(self, "_is_minimal_form"):
+            return self._is_minimal_form
+
+        seen = set([])
+        min_ = 0
+        for c in self.cycles:
+            if c.is_minimal_form:
+                if seen.intersection(c._indexes_touched) or min(c._indexes_touched) >= min_:
+                    self._is_minimal_form = False
+                    return self._is_minimal_form
+                seen = seen.union(c._indexes_touched)
+                min_ = min(c._indexes_touched)
+
+            else:
+                self._is_minimal_form = False
+                return self._is_minimal_form
+        self._is_minimal_form = True
+        return self._is_minimal_form
+
     def to_minimal_form(self) -> Permutation:
         # find the smallest, disjoint, representation
         # Ex: P = (3, 4)(6, 10)(10, 11)(1, 5)(5, 12)
         # minimal form is (1, 5, 12)(3, 4)(6, 10, 11)
 
-        # this basically sends a number through, and determines where it ends up. Kinda sketch.
+        # this basically sends a number through, and determines where it ends up. Kinda sketch and slow.
+
+        if self.is_minimal_form:
+            return self
+
 
         L = list(range(1, self.max() + 1))
         L_mask = [True] * len(L)
@@ -115,7 +147,9 @@ class Permutation:
             if len(cycle) >= 2:
                 cycles.append(Cycle(*cycle))
 
-        return Permutation(*cycles)
+        p = Permutation(*cycles)
+        p._is_minimal_form = True
+        return p
 
     @property
     def parity(self) -> Literal[0, 1]:
@@ -131,7 +165,17 @@ class Permutation:
 
 
     def __hash__(self) -> int:
-        return hash(self.to_minimal_form().cycles)
+        if len(self.cycles) == 0:
+            return 1
+
+        if self.is_minimal_form:
+            return reduce(xor, map(hash, self.cycles))
+        else:
+            return hash(self.to_minimal_form())
+
+    @property
+    def _indexes_touched(self):
+        return reduce(set.union, (c._indexes_touched for c in self.cycles))
 
 
 E = Permutation()  # identity
@@ -149,6 +193,10 @@ class Cycle:
             args = self._rotate(args)
 
         self.cycle = args
+
+    @property
+    def _indexes_touched(self):
+        return set(self.cycle)
 
     @staticmethod
     def _rotate(l):
@@ -181,7 +229,7 @@ class Cycle:
         return str(self.cycle)
 
     def __repr__(self):
-        return str(self)
+        return f"Cycle{self.cycle}"
 
     def __mul__(self, other: Union[Permutation, Cycle, PermutationCollection]) -> Permutation:
         if isinstance(other, PermutationCollection):
@@ -228,6 +276,9 @@ class Cycle:
     def __hash__(self):
         return self.cycle.__hash__()
 
+    @property
+    def is_minimal_form(self) -> bool:
+        return True
 
 
 if __name__ == "__main__":

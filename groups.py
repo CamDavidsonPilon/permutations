@@ -2,11 +2,6 @@ from __future__ import annotations
 from permutations import *
 from itertools import combinations
 
-class Vector(list):
-    def __mul__(self, other) -> Vector:
-        return Vector([(s * o).to_minimal_form() for (s, o) in zip(self, other)])
-
-
 
 def create_symmetric_group_of_order(n) -> PermutationCollection:
     if n == 1:
@@ -22,8 +17,6 @@ def create_alternating_group_of_order(n) -> PermutationCollection:
 def create_isomorphic_cycle_group_of_order(n) -> PermutationCollection:
     generator = Cycle(*range(1, n+1))
     return PermutationCollection([generator**i for i in range(n)])
-
-
 
 
 def is_group(collection: PermutationCollection):
